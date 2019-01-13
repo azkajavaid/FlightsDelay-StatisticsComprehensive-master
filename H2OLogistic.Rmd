@@ -1,0 +1,129 @@
+
+# Logistic Regression 
+
+## Introduction 
+H2O platform was used to construct a logistic regressions model to predict departure delay occurrence over 30 minutes for flights data from The United States Department of Transportation Bureau of Transportation Statistics from 2008 to 2016. Cutoff of 30 minutes provided adequate sample size for flights that either experienced or did not experience departure delay over 30 minutes. Analysis was performed on a random sample of 200,000 observations since this dataset of this size could easily be transferred to the Spark environment. Occurrence of delay over 30 minutes was assessed against year, carrier, air time, distance, week and season as predictors. Initially, hour, month and weekend status predictors were also used to estimate departure delay incidence though they appeared to have no importance and therefore were not used in subsequent analyses. 
+
+## H2O Connection 
+H2O connection was established to local host using h2o.init() using default 1GB of memory. Additional cluster memory can be allocated with max_mem_size specification. Since this project was performed using the Apache Spark platform, spark connection was established with the YARN Hadoop cluster. 
+
+```{r yarn, eval=FALSE}
+library(sparklyr)
+library(rsparkling)
+library(dplyr)
+options(rsparkling.sparklingwater.version = "1.6.8")
+
+#Initialize a cluster (without Hadoop connection)
+h2o.init()
+
+#Connect to YARN through shell
+kinit()
+klist  
+
+#Connect to Apache Spark Hadoop in markdown 
+sc <- spark_connect(master = "yarn-client")
+```
+
+## Spark Data Integration 
+Once spark connection was estabished, flights dataset from 2008-2016 was allocated by copying flights data from 2008 to 2016 from Hadoop to the Spark environment (see Appendix 2 for full details on the dataset creation). 
+
+```{r datacopy, eval=FALSE}
+#If connection is established to Hadoop:
+load("HadoopLogMod.Rda")
+set.seed(134)
+sample <- FullDatLog[sample(nrow(FullDatLog), 
+                              200000, replace = FALSE, 
+                              prob = NULL),]
+LogDataMod <- copy_to(sc, sample, "LogData", 
+                      overwrite = TRUE)
+
+#If no connection established to Hadoop: 
+#Read from local file
+FlightsDat = h2o.importFile(localH2O, path = prosFlights)
+#Convert to h2o data frame
+FlightsDat <- as.h2o(sample)
+```
+
+## Data Partitioning 
+After data was copied, it was partitioned into test and training sets. An approximate 75/25 partition was used where the training dataset was allocated about 75% of the data (149,789 observations) and test set was allocated about 25% (50,211 observations). 
+
+```{r parti, eval = FALSE}
+#Partitioning data frame in Spark 
+partitions <- LogDataMod %>%
+  sdf_partition(training = 0.75, test = 0.25, seed = 1099)
+
+#Partitioning data locally within the H2O platform
+splits <- h2o.splitFrame(LogDataMod, c(0.75,0.25), seed=1099)
+```
+
+## Checking Conditions
+Logistic regression necessitated satisfaction of linearity, randomness and independence conditions. Since the response (dep_delayIn) was a binary variable indicating the incidence of departure delay of 30 minutes, linearity was assumed. Randomness and independence may not necessarily be valid assumptions since late flight typically results in subsequent delays. Analysis of the randomness and independence assumption will require tracking flight schedules from 2008 to 2016. Future studies could further assess this assumption. This study proceeded with caution and therefore findings from this paper need be examined conservatively.
+
+## Modeling 
+Once data was partitioned, logistic regression model was specified as shown. The h2o.glm function was used to specify a binomial family function. Additional arguments in the h2o.glm function included nfolds (specifies the number of folds for cross validation), alpha (0-1 numeric that specifies the elastic-net mixing parameter, set to ensure regularization and consequently prevent overfitting), lambda (specifies a non-negative shrinkage parameter) and lambda_search (logical indicating whether or not search is conducted over the specified lambda space). H2O models can additionally be stopped early with specification of metrics like misclassification error, rsquared and mean squared error. Every model has an associated model id which can be referenced for future model iterations. In the model below, a 5-fold cross validation was performed with alpha level of 0.1. As mentioned, the logistic model shown below attempted to predict departure delay occurrence by variables like year, carrier, air time, distance, week and season. 
+
+```{r logmod29, eval = FALSE}
+myX = setdiff(colnames(training), c("dep_delayIn", 
+                                    "orig_id", "hour", 
+                                    "month", "weekend"))
+ 
+regmod <- h2o.glm(y = "dep_delayIn", x = myX, 
+                  training_frame = training, family = "binomial",
+        alpha = 0.1, lambda_search = FALSE, nfolds = 5)
+```
+
+## Model Assessment
+Model performance was assessed with the h2o.performance function, which provides access to evaluation metrics like MSE, RMSE, LogLoss, AUC and $R^{2}$. The $R^{2}$ for this model was 0.0088 and the AUC was 0.586 as shown by `r ref("Hyarn20")`. The $R^{2}$ value indicated that only about 0.9% of the variation in departure delay was accounted for by predictors year, carrier, air time, distance, week and season. In addition to the h2o.performance function, h2o.auc and h2o.confusionMatrix (see `r ref("Hyarn26")`) were used to retrieve the analogous parameters. The AUC curve was visualized as shown by figure `r ref("Hyarn48")` with the plot(h2o.performance) command. The curve with arched midway visually shows area convergence of about 50%.  
+
+```{r asses, eval = FALSE}
+h2o.performance(regmod) 
+h2o.auc(regmod) 
+h2o.confusionMatrix(regmod) 
+accuracy <- (mat$No[1]+mat$Yes[2])/(mat$No[1]+
+                                      mat$No[2]+mat$Yes[1]+
+                                      mat$Yes[2]) 
+plot(h2o.performance(regmod)) #plot the auc curve 
+```
+
+```{r perfo, results = "asis", echo = FALSE}
+label(path = "figure/PerformanceLogMod.png", caption = "Model Performance", 
+      label = "Hyarn20", type = "figure", scale=0.7)
+```
+
+```{r confus, results = "asis", echo = FALSE}
+label(path = "figure/confMatLog.png", caption = "Confusion Matrix", 
+      label = "Hyarn26", type = "figure", scale = 0.8)
+```
+
+```{r varimp2, results = "asis", echo = FALSE}
+label(path = "figure/ROCCurveLog.png", caption = "AUC Curve", 
+      label = "Hyarn48", type = "figure", scale=0.8)
+```
+
+\clearpage
+
+As the variable importance plot in `r ref("Hyarn34")` shows, carrier type was the most important predictor of departure delay over 30 minutes. Hawaiian Airlines (HA) was most negatively associated with departure delay. Carrier Spirit (NK) was positively associated with departure delay. Additionally, carriers Alaska (AS), US Air (US) were negative predictors of departure delay while carriers JetBlue (B6) and Atlantic Southeast Airlines were positive predictors of departure delay greater than 30 minutes. Season fall was a negative predictor of departure delay while summer was a positive predictor of departure delay over 30 minutes. Air time was a positive indicator of departure delay over 30 minutes while distance was a negative predictor of departure delay over 30 minutes. 
+
+```{r assess, eval = FALSE}
+h2o.varimp(regmod) #compute variable importance
+h2o.varimp_plot(regmod) #plot variable importance
+```
+
+```{r varimp, results = "asis", echo = FALSE}
+label(path = "figure/LogVarImp.png", caption = "Variable Importance for Logistic Regression Analysis", 
+      label = "Hyarn34", type = "figure")
+```
+
+\clearpage
+
+## Making Predictions 
+After model assessments were analyzed, predictions were performed on the test set. The accuracy of the test set was calculated and compared with the accuracy of the cross-validated training set. Accuracy of the test set of 0.5077 compared with the accuracy of the training data of 0.5015. While the accuracy of the training and test data was not very high, the error rates for both data were comparable thereby reducing overfitting likelihood.
+
+```{r predile, eval = FALSE}
+pred <- h2o.performance(object = regmod, newdata = test) 
+mean(pred$predict==test$dep_delayIn) #accuracy of test set 
+```
+
+
+## Conclusion
+This chapter discussed concepts like setting up a H2O Yarn connection, dataset partitioning, linear regression modeling and model assessments. Overall carrier type appeared to be most important in predicting departure delay over 30 minutes. Predictors like season, air time and distance were important. It must be noted though since the $R^{2}$ value was only about 0.0088 meaning about 0.9% of the variation in departure delay was covered by the chosen predictors, the model does not have strong practical significance or predictive ability given an accuracy of about 50%. 

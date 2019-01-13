@@ -1,0 +1,3 @@
+
+This is a Statistics Comprehensive project assessing United States flights delays from 2008-2016 using the H2O deep learning and machine learning platform in R. The final knitted document is skeleton.pdf. Individual chapter files can be obtained from the specific markdown files. Knit skeleton.Rmd to regenerate the knitted document or to view the final document after changing the individual chapter files. Shiny application for this project is available at https://aj17.shinyapps.io/flightsapp/. The application and associated data files are accessible under the FlightsApp folder.
+

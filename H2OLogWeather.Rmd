@@ -1,0 +1,93 @@
+
+# Logistic Regression and Weather
+
+## Introduction 
+The H2O platform was used to perform logistic regression to predict departure delay over 30 minutes using weather data from the nycflights13 package for LaGuardia, John F. Kennedy and Newark Liberty International airports in 2013. Analysis was performed on data containing 48,126 observations. Occurrence of delay over 30 minutes was assessed against season, month, week, weekend, day, hour, distance and air time. Weather predictors included temperature, dewpoint, humidity, wind direction, wind speed, wind gust, precipitation, pressure and visibility. 
+
+## Data Partitioning 
+Data from the nycflights13 package was copied in the Spark environment followed by a 75/25 partitioning. The training data contained about 36,153 observations and the test set contained 11,973 observations. 
+
+```{r partitioning, eval = FALSE}
+library(sparklyr)
+library(rsparkling)
+library(dplyr)
+options(rsparkling.sparklingwater.version = "1.6.8")
+sc <- spark_connect(master = "yarn-client")
+load("flights_weather2.Rda")
+
+partitions <- LogDataMod %>%
+  sdf_partition(training = 0.75, test = 0.25, seed = 1099)
+
+#Partitioning data locally within the H2O platform
+splits <- h2o.splitFrame(LogDataMod, c(0.75,0.25), seed=1099)
+```
+
+## Checking Conditions
+Linearity was assumed given the binary nature of the response variable assessing whether or not departure delay over 30 minutes occurred. Randomness and independence may not necessarily be valid assumptions since a late flight typically results in subsequent delays. The study proceeded with caution. 
+
+## Modeling 
+Logistic model was used to predict departure delay against weather predictors like season, month, week, weekend, day, hour, distance, air time, temprature, dewpoint, humidity, wind direction, wind speed, wind gust, precipitation, pressure and visibility. Same parameters as specified in logistic model in the previous chapter were used (alpha = 0.1, lambda_search = FALSE and 5-folds cross-validation). 
+
+```{r logmod, eval = FALSE}
+myX = setdiff(colnames(training), c("dep_delayIn")) #set difference
+ 
+regmodWeather <- h2o.glm(y = "dep_delayIn", x = myX, 
+                  training_frame = training, family = "binomial",
+        alpha = 0.1, lambda_search = FALSE, nfolds = 5)
+```
+
+## Model Assessment
+Model performance was assessed with the h2o.performance function. $R^{2}$ for this model was 0.109 and the AUC was 0.704 as shown by `r ref("weath1")`. The $R^{2}$ value indicated that about 11% of the variation in the departure delay variable was captured by season, month, week, weekend, day, hour, distance, air time, temprature, dewpoint, humidity, wind direction, wind speed, wind gust, precipitation, pressure and visibility. In addition to the h2o.performance function, h2o.confusionMatrix (see `r ref("weath2")`) was used to retrieve the confusion matrix. The AUC curve was visualized as shown by figure `r ref("weath3")`. 
+
+```{r asses29, eval = FALSE}
+h2o.performance(regmodWeather) 
+h2o.auc(regmodWeather) 
+h2o.confusionMatrix(regmod) 
+accuracy <- (mat$No[1]+mat$Yes[2])/(mat$No[1]+
+                                      mat$No[2]+mat$Yes[1]+
+                                      mat$Yes[2]) 
+plot(h2o.performance(regmodWeather)) #plot the auc curve 
+```
+
+```{r perfo29, results = "asis", echo = FALSE}
+label(path = "figure/regmodPerformWeather.png", caption = "Model Performance", 
+      label = "weath1", type = "figure", scale=0.7)
+```
+
+```{r confus29, results = "asis", echo = FALSE}
+label(path = "figure/regModWeather2.png", caption = "Confusion Matrix", 
+      label = "weath2", type = "figure", scale = 0.8)
+```
+
+```{r varimp29, results = "asis", echo = FALSE}
+label(path = "figure/LogWeatherROC.png", caption = "AUC Curve", 
+      label = "weath3", type = "figure", scale=0.8)
+```
+
+\clearpage
+
+As shown in the variable importance plot in `r ref("weath4")`, air time and distance were important in predicting departure delay over 30 minutes. While air time was a negative predictor of departure delay, distance was a positive indicator of departure delay over 30 minutes. Hours 5, 6 and 7 am were negative predictors of departure delay over 30 minutes. In comparison, hours 6, 7 and 8 pm were positive predictors of departure delay over 30 minutes. Intuitively, this result suggested that there is a higher likelihood of experiencing departure delay greater than 30 minutes in evening than in early morning hours. Weather was not very important since humidity was the only important positive predictor (ranked 36th out of 40) of departure delay greater than 30 minutes. 
+
+```{r assess29, eval = FALSE}
+h2o.varimp(regmodWeather) #compute variable importance
+h2o.varimp_plot(regmodWeather) #plot variable importance
+```
+
+```{r varimp39, results = "asis", echo = FALSE}
+label(path = "figure/top40Weather.png", caption = "Variable Importance for Weather Logistic Regression", 
+      label = "weath4", type = "figure")
+```
+
+\clearpage
+
+## Making Predictions 
+After model assessments were analyzed, predictions were performed on the test set. The accuracy of the test set was calculated and compared with the accuracy of the cross-validated training set. In this case, accuracy of the test set of 0.612 compared with the accuracy of the training set of 0.608. Since the error rates were similar, overfitting occurrence was reduced. 
+
+```{r predile29, eval = FALSE}
+pred <- h2o.performance(object = regmodWeather, newdata = test) 
+mean(pred$predict==test$dep_delayIn) #accuracy of test set 
+```
+
+## Conclusion
+This chapter assessed the effects of weather on departure delay aiming to examine the role of weather metrics like temperature, dewpoint, humidity, wind direction, wind speed, wind gust, precipitation, pressure and visibility on departure delay while controlling for predictors like distance and air time. 
+Overall air time and distance were the most important predictors. Hour was also important in predicting departure delay over 30 minutes. Predictors assessing weather were not important. While the model including weather produced a $R^{2}$ of 0.10 (higher than the $R^{2}$ for logistic model without weather), $R^{2}$ of 0.10 nonetheless indicates that most of the variation in departure delay is unaccounted for by the explanatory predictors including weather.

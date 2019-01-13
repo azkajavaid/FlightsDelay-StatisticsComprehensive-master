@@ -1,0 +1,8 @@
+|
+    I would first like to thank the Amherst College Department of Mathematics and Statistics and Amherst College Department of Information Technology (IT) for facilitating this       project. I would like to thank Professor Shu-Min Liao, Professor Pamela B. Matheson and Professor Amy Wagaman for reviewing the project as well as offering suggestions for improvement. Additionally I would like to thank Professor Eunice Kim and Professor Susan Wang for their assistance in the Statistics Program. 
+    
+  This project would not have been possible if it wasn't for        Aaron Coburn's continuous assistance with the Hadoop platform. Additionally, I would like to           thank Andy Anderson and Amherst College Department of IT for their assistance with the R server. 
+    
+    I would like to thank my classmates from Advanced Data Analysis,     particularly Stephany-Flores Ramos, Jordan Browning and Levi Lee. I wouldn't have the necessary data wrangling and analytical skills if it wasn't for     the insightful group work. Additionally I would like to thank Caleb Ki for collaborating on the Advanced Data Analysis group project. 
+
+  Lastly I would like to thank Professor Nicholas Horton for all his support with Hadoop, the H2O machine learning platform and for stressing the importance of statistical analytics, git programming, and collaborative learning. 

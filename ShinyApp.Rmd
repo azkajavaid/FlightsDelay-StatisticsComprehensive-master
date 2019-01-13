@@ -1,0 +1,73 @@
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#library(xtable)
+library(knitr)
+```
+
+
+# Shiny Application 
+
+## Introduction
+
+Flights dataset from The United States Department of Transportation Bureau of Transportation Statistics was used for Shiny visualization. The dataset (from 2008-2016) was set up in YARN-client cluster in the Hadoop server. Initially it contained variables like year, month and day of the trip, departure delay, arrival delay, carrier, tail number, distance covered, flight number, flight origin, destination and scheduled flight time. Additional predictors were created to assess departure delay. These variables included day of week, season, weekend status, and hour of flight delay. 
+
+Since only flights with departure delay greater than 90 minutes were used for deep learning analysis, a table was constructed to show the percentage of flights with departure delay greater than 90 minutes from the orignal dataset (created as a combination of data from individual years). A random sample of 200,000 observations with departure delay greater than 90 minutes was selected from the observations shown in table 3.1. 
+
+```{r, results = "asis", echo = FALSE}
+Year <- c(2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016)
+TotalFlights <- c(7009726,6450285,6450117,6085281,6096761,6369482,5819811,5819079,2289826)
+NumberDelayed <- c(235476,176710,176460,176120,166902,208306,198631,188433,63429)
+PercentDelayed <- c(3.36,2.74,2.74,2.89,2.74,3.27,3.41,3.24,2.77)
+Delay90 <- cbind(Year, TotalFlights, NumberDelayed, PercentDelayed)
+kable(Delay90, caption = "Percentage of observations with >90 minutes delay")
+```
+
+## Web Scraping
+Since carrier, departure airport and destination airport information was provided as two and three letter code names, following the guidelines set by the International Air Transport Association (IATA), additional data was scraped from web to include the origin and destination airport information as well as the carrier and state names. This data was then merged with the flights dataset. Data scraping was performed using the rvest package and the SelectorGadget tool, a Chrome extension that allows for easy CSS webpage selection (see Appendix 2 for complete scraping code).
+
+## Shiny App
+A shiny application was created for initial exploratory analysis. Graphical, tabular and weather analysis was performed. Images from the shiny app are shown below each commentary. The app itself can be accessed at https://aj17.shinyapps.io/flightsapp/.
+
+### Tabular Analysis 
+The tabular analysis displayed the mean departure delay for all flights for the specified origin and destination states. In addition, the panel showed departure delays for all flights for the user selected origin and destination airports. 
+
+### Path Analysis
+Path analysis tab shows flights from a specified origin and destination state for a chosen year for all flights with departure delay greater than 90 minutes. Point width represents the extent of departure delay in minutes. The application was set up so that a point click reveals information about the orgin and destination state and airports along with the average departure delay for that trip in minutes. An example of paths from California to New York is shown by `ref("shiny90")`
+
+```{r shiny24, results = "asis", echo = FALSE, fig.align = "center"}
+label(path = "figure/PathsAnalysis2.png",
+      caption = "Paths Analysis from California to New York in 2008", 
+      label = "shiny90", type = "figure", scale = 0.35)
+```
+
+
+### Departure Delay Analysis
+
+#### Delay by State, Region and Division
+
+Departure delay analysis was graphically performed at state, region and division level. The first tab shows departure delay by airports for the selected state and the aggregated delays for the selected state over all airports from 2008 to 2016. In addition, departure delay by four regions (Midwest, Northeast, South and West) was analyzed. Each region is further analyzed by division. Midwest region is analyzed by East North Central and West North Central divisions. Northeast is analyzed by Middle Atlantic and New England divisions. South by East South Central, West South Central and South Atlantic divisions. Lastly Pacific and Mountain divisions are analyzed for Western United States. For each region analysis, state-wide trends in the divisions for that region as well as aggregate departure delay over 2008 to 2016 are shown. An output example for Northeast is shown by `r ref("shiny7")`.
+
+```{r shiny11, results = "asis", echo = FALSE, fig.align="center"}
+label(path = "figure/Northeast1.png", 
+      caption = "Departure Delay by Region and Division", 
+      label = "shiny7", type = "figure", scale = 0.4)
+```
+
+#### Delay by State and Region over Time and Carrier 
+
+In addition to departure delay analysis at the state, region and division level, delay was analyzed by variables including hour, day of week, weekend status, month, season and carrier type. Analysis was performed at regional (Midwest, notheast, south, west) and state levels. A general trend pointed towards high delays in South and Midwest in late night/early morning hours. Northeast region appears to have the highest delays over the week with the highest delays occurring on Sunday and weekends. Departure delays in Northeast (June, July, August) are high in the summer season while delays are high in spring (April, May) in South. In regards to carrier analysis, Hawaiian Airlines experiences the highest delay in Northeast and West region. Example below shows delay by weekday for Midwest, Northeast, South and Western regions as depicted by `r ref("shiny77")`.  
+
+```{r shiny12, results = "asis", echo = FALSE, fig.align="center"}
+label(path = "figure/DelayWeekday.png", 
+      caption = "Departure Delay by Region over Weekday", 
+      label = "shiny77", type = "figure", scale = 0.4)
+```
+
+\clearpage
+
+### Aggregate United States Departure Delays
+
+The last shiny panel displays the mean departure delay by airport from 2008 to 2016 in the United States for all flights with departure delay greater than 90 minutes. The dataset for this panel was created by filtering all flights with delay greater than 90 minutes for every year from 2008 to 2016, resulting in 1,590,467 observations. This data was then aggregated by origin and destination airports and year to produce a smaller dataset containing 39,277 observations. Hovering over the points displays the state, airport and the average departure delay for that airport.
+
+\clearpage

@@ -1,0 +1,385 @@
+---
+header-includes:
+- \usepackage{graphicx,latexsym}
+- \usepackage{amssymb,amsthm,amsmath}
+- \usepackage{longtable,booktabs,setspace}
+output: pdf_document
+---
+
+```{r include_packages_2, include = FALSE}
+# This chunk ensures that the acstats package is
+# installed and loaded. This acstats package includes
+# the template files for the thesis and also two functions
+# used for labeling and referencing
+if(!require(devtools))
+  install.packages("devtools", repos = "http://cran.rstudio.com")
+if(!require(dplyr))
+    install.packages("dplyr", repos = "http://cran.rstudio.com")
+if(!require(ggplot2))
+    install.packages("ggplot2", repos = "http://cran.rstudio.com")
+if(!require(acstats)){
+  library(devtools)
+  devtools::install_github("Amherst-Statistics/acstats")
+  }
+library(acstats)
+```
+
+# Deep Learning 
+
+## Introduction
+
+### Machine Learning and Deep Learning
+Machine learning is the process of insight extraction from natural data like speech, text and images to develop pattern-recognition systems, transcribe speech in natural language processing (NLP), develop reinforcement learning models, identify data anomalies and create user-targetted recommendation systems. Conventional machine learning models are limited in their capacity to build intricate models from raw data of large scale (dataset like ImageNet containing about 15 million images) [@Imagenet]. Representation learning methods like deep learning provide the ability to automatically extract data insights for detection or classification. Deep learning provides multiple levels of representation through its non-linear module functionality, which transforms data from initial level to a more complex state [@DeepLearn11]. Learned process' ability to automatically extract insights using general-purpose learning process provides agility and dynamicity to deep learning models.
+
+Machine Learning is conventionally divided in supervised and unsupervised learning. Supervised learning requires labeled data and is used to perform operations like image processing. Supervised learning includes algorithms like regression, neural networks, random forest and support vector machines. Unsupervised learning, on the other hand, attempts to locate patterns in unlabeled data and includes algorithms like k-nearest neighbor, which use distance metrics to find natural data groupings. 
+
+This section explores the application of neural networks in a Deep Learning context, which describe layered neural networks. Deep learning is used in fields like science, advertisement, and business for high dimensional natural data processing including image and speech recognition, drug molecule activity prediction and natural language processing procedures like sentiment analysis and topic classification. 
+
+## H2O Deep Learning 
+H2O Deep Learning follows the multi-layer, feedforward neural network model [@DeepFeedForward]. In the feedforward neural network model, the inputs are weighted, combined and transmitted as output signal by the connected neuron. Function f shown in `r ref("Hyarn6")` shows a nonlinear activation function where the bias accounts for the activation threshold [@deepH2Odoc]. A nonlinear activation function ensures that the linearly input hidden layers experience variation. Otherwise the output will simply be a linear combination of the hidden layers making hidden layers irrelevant. Examples of activation functions include sigmoid and rectified linear unit (ReLU). The multi-layer platform consists of layers of interconnected neurons, which are composed of nonlinear layers culminating in a regression or classification layer [@deepH2Odoc]. An example of a multi-layer neural network is shown in `r ref("Hyarn7")` [@deepH2Odoc].
+
+```{r neuralNet, results = "asis", echo = FALSE}
+label(path = "figure/neuralNet.png", caption = "Neural Network", 
+      label = "Hyarn6", type = "figure", scale = 0.6)
+```
+
+```{r neuralNet2, results = "asis", echo = FALSE}
+label(path = "figure/neuralHid.png", caption = "Hidden Layers", 
+      label = "Hyarn7", type = "figure", scale = 0.5)
+```
+
+Overall H2O's deep learning functionalities include specification of regularization options, learning rate, annealing, hyperparameter optimization and model selection through grid and random search. Additionally H2O facilitates automatic categorical and numerical data processing along with automatic missing data imputation. 
+
+H2O deep learning platform was used to predict departure delay over 90 minutes. The response variable was a continuous predictor capturing extent of departure delay in minutes. While the dataset used to perform logistic regression contained a binary response indicating the occurrence of departure delay over 30 minutes, deep learning was performed with a stringent criteria of 90 minutes since a larger delay is more likely to incur financial expenses. The explanatory predictors of interest for the deep learning model included year, month, carrier, distance, hour, week, weekend and season. 
+
+\clearpage 
+
+## Data Partitioning 
+Before data preparation and model building, connection was established to the YARN client. Following connection, data sample of 200,000 was obtained, which provided easy transferability to the Spark environment. Since hyperparameter optimization was performed in the deep learning algorithm, a validation data set in addition to a test set was used for additional verification. Data was split 60/20/20 consisting of 60% training, 20% validation and 20% test set. 
+
+```{r part, eval = FALSE}
+options(rsparkling.sparklingwater.version = "1.6.8")
+sc <- spark_connect(master = "yarn-client")
+
+set.seed(12)
+thousand <- FullDat[sample(nrow(FullDat), 200000, replace = FALSE, 
+                           prob = NULL),]
+mtcars_tbl <- copy_to(sc, thousand, "mtcars", overwrite = TRUE) 
+
+partitions <- mtcars_tbl %>%
+  sdf_partition(training = 0.6, validation = 0.20, test = 0.20, 
+                seed = 1099)
+```
+
+\clearpage 
+
+## Model Building 
+Following data partitioning, h2o.deeplearning function was used to predict departure delay over 90 minutes as a function of year, month, carrier, distance, hour, week, weekend and season. The h2o.deeplearning function includes specification of the explanatory (x) and response predictors (y). In addition, h2o.deeplearning paramaters include activation function specification (Tanh, TanhWithDropout, Rectifier, RectifierWithDropout, Maxout, MaxoutWithDropout, see `r ref("Hyarn77")` [@deepH2Odoc]), training and validation_frame delineation along with fine-tuning parameters like maximum model iterations, regularization parameters like l1 and l2, non-negative shrinkage parameter lambda and cross validation parameter (nfolds) specifying number of folds and model iterations, respectively. A random seed can also be specified though this is only reproducible with algorithms running on a single thread. Additionally h2o.deeplearning model provides the ability to stop the model learning early if no apparent changes in the loss function are observed. 
+
+```{r neuralNet3, results = "asis", echo = FALSE}
+label(path = "figure/activationFunc.png", 
+      caption = "Activation Function", 
+      label = "Hyarn77", type = "figure", scale = 0.5)
+```
+
+A simple model shown below was constructed to predict departure delay over 90 minutes as a function of the explantory variables. An epoch of one, indicating a single data iteration, was specified. In addition, 5-fold cross validation was used. Tanh activation layer was used since it is more adept at exponentially rising functions and consequently appropriate for regularization. 
+
+```{r deep, eval = FALSE}
+myX = setdiff(colnames(training), ("dep_delay"))
+deepmod <- h2o.deeplearning(
+  y="dep_delay",
+  x=myX,
+  activation="Tanh",  
+  training_frame=training, 
+  validation_frame=validation,
+  epochs=1,
+  variable_importances=T,   
+  nfolds = 5,
+  keep_cross_validation_predictions=T
+)
+```
+
+A variable importance plot was used to view the most important predictors produced by deepmod. In this case, a plot of the top 20 predictors was produced. As `r ref("Hyarn81")` shows, hour and carrier type were most important at predicting departure delay greater than 90 minutes. Hours 6 am and 5 am along with 9 pm were important at predicting departure delay greater than 90 minutes. Additionally carriers Northwest (NW), US Air (US) and Frontier (F9) were important at predicting departure delay greater than 90 minutes. Besides hour and carrier type, flights in April were important at predicting departure delay greater than 90 minutes. 
+
+```{r import, eval = FALSE}
+h2o.varimp_plot(deepmod, num_of_features = 20)
+```
+
+```{r deepImport3, results = "asis", echo = FALSE, fig.align="center"}
+label(path = "figure/VarImpDeep.png", 
+      caption = "Deep Learning Variable Importance", 
+      label = "Hyarn81", type = "figure", scale = 1.0)
+```
+
+\clearpage 
+
+## Model Assessment 
+Since the response variable was a continuous indicator of departure delay, mean squared error (MSE) was used as an error metric to assess the performance of the deep learning model.
+
+As shown by `r ref("Hyarn9")`, the MSE on training data was 6522.2 while MSE on validation data was 6918.5. In comparison, MSE on test data was 7010.6. Since MSE for the validation and test data was higher than MSE on training data, this was an indication of good fit. Overfitting did not appear to be an issue since the difference between the MSE of the training, validation and test set was not especially high. The model results however need to be considered cautiously due to the high MSE. 
+
+```{r assessment, eval = FALSE}
+deepmod@parameters  
+h2o.performance(deepmod, train = TRUE)  
+h2o.performance(deepmod, valid = TRUE)  
+h2o.performance(deepmod, newdata = test)
+```
+
+```{r m1Train, results = "asis", echo = FALSE}
+label(path = "figure/deepModml.png", 
+      caption = "Deep Learning Model Performance", 
+      label = "Hyarn9", type = "figure", scale = 0.7)
+```
+
+\clearpage 
+
+## Saving Model
+Once the model was constructed, it was saved using the h2o.saveModel command as shown below with the path specification. 
+
+```{r save, eval = FALSE}
+DeepModel <- h2o.saveModel(m1, path = "/home/ajavaid17", force = FALSE) 
+```
+
+Model can be loaded with the h2o.loadModel command with the specified path as an argument. 
+
+```{r load, eval = FALSE}
+ld <- h2o.loadModel(path ="/home/ajavaid17/
+                    DeepLearning_model_R_1487567612904_2")
+```
+
+
+## Grid Search Model
+H2O's search functionality facilitated experimentation with different hyperparameter combinations. All possible combinations of the hyperparameters were tested. In the model below, 2 different activation functions, 2 hidden layers, 2 input_dropout_ratio and 3 rate parameters were tested resulting in 24 models. Tanh and TanhWithDropout parameters were used since they better regularize for exponential functions. The hidden variable specifies the hidden layer sizes. The rate parameter specifies the learning rate where a higher rate produces less model stability and a lower rate produces slower model convergence. The rate_annealing parameter adjusts learning rate. 
+
+```{r grid, eval = FALSE}
+hyper_params <- list(
+  activation=c("Tanh", "TanhWithDropout"),
+  hidden=list(c(20,20),c(40,40)),
+  input_dropout_ratio=c(0,0.05),
+  rate=c(0.01,0.02,0.03)
+)
+```
+
+Following hyperparameter specification, h2o.grid functionality was used for model iteration. In order to expedite the model building process, stopping metrics were specified so that the h2o.grid functionality stops when the MSE does not improve by greater than or equal to 2% (stopping_tolerance) for 2 events (stopping_rounds). In addition to the specified hyperparameters, epoch of 10 was chosen for model building. Momentum was specified to reduce algorithm halting at local minima. Theoretically, momentum specification reduces terrrain irregularities thus preventing algorithm to stop at the minima [@momentum]. The l1 and l2 regularization parameters attempt to prevent overfitting while the max_w2 sets the constraint for squared sum of incoming weights per unit. 
+
+```{r hyper, eval = FALSE}
+grid <- h2o.grid(
+  algorithm="deeplearning",
+  grid_id="gridDeep", 
+  training_frame=training,
+  validation_frame=validation,
+  y="dep_delay",
+  x=myX,
+  epochs=10,
+  stopping_metric="MSE",
+  stopping_tolerance=2e-2,        
+  stopping_rounds=2, 
+  score_duty_cycle=0.025,         
+  adaptive_rate=T,                
+  momentum_start=0.5,             
+  momentum_stable=0.9, 
+  momentum_ramp=1e7,
+  variable_importances=T,
+  l1=1e-5,                         
+  l2=1e-5,
+  max_w2=10, 
+  hyper_params=hyper_params
+)
+```
+
+For-loop can be used to iterate over all 24 models. Direct indexing in the grid object can be used to retrieve the optimal model by MSE along with associated parameters. The gridDeep grid search resulted in an optimal model with parameters including the Tanh activation layer, hidden layer of (20,20), input_dropout_ratio of 0 and rate of 0.03 as depicted by `r ref("Hyarn11")`. 
+
+```{r loop2, eval = FALSE}
+for (model_id in grid@model_ids) {
+  model <- h2o.getModel(model_id)
+  mse <- h2o.mse(model, valid = TRUE) 
+  sprintf("Validation set MSE: %f", mse)
+}
+
+#Retrieve optimal model by MSE
+grid@summary_table[1,] 
+optimal <- h2o.getModel(grid@model_ids[[1]]) 
+
+optimal@allparameters #print all parameters of best model 
+h2o.performance(optimal, train = TRUE) #retrieve training MSE
+h2o.performance(optimal, valid = TRUE) #retrieve validation MSE
+h2o.performance(optimal, newdata = test) #retrieve test MSE 
+```
+
+```{r m2Train5, results = "asis", echo = FALSE}
+label(path = "figure/optimalParam.png", 
+      caption = "Grid Model Parameters", 
+      label = "Hyarn11", type = "figure", scale = 0.7)
+```
+
+
+As shown by `r ref("Hyarn122")`, MSE on the optimal model for the training data was 6630.62 whereas MSE for the validation data was 6883.68 and 6972.59 for the test data. The validation and test errors were higher than training signaling towards a good model fit, with some reservations for overfitting. Grid search model performs better than a simple deep model since the MSE for the validation and test data for grid search model (optimal) are lower than the MSE for the validation and test data for the original non-grid search model (deepmod) (validation MSE of 6918.5 and test MSE of 7010.6). 
+
+
+```{r m2Train, results = "asis", echo = FALSE}
+label(path = "figure/DeepVarMod1.png", 
+      caption = "Grid Model Performance", 
+      label = "Hyarn122", type = "figure", scale = 0.8)
+```
+
+Variable importance plot was used to view the most important predictors. As `r ref("Hyarn89")` shows, hour was most important in predicting departure delay greater than 90 minutes. Hour 6 and 5 am along with 9 pm were also important. Carriers Southwest (WN) and JetBlue (B6), weekday status of a weekend, season being summer and weekday being Friday were additionally important in predicting departure delay over 90 minutes.
+
+```{r import2, eval = FALSE}
+h2o.varimp_plot(optimal, num_of_features = 20)
+```
+
+```{r deepImport, results = "asis", echo = FALSE}
+label(path = "figure/VarModGrid.png", 
+      caption = "Grid Search Variable Importance", 
+      label = "Hyarn89", type = "figure", scale = 1.0)
+```
+
+\clearpage 
+
+## Random Grid Search Model
+In comparison to grid search which iterated over parameter combinations exhaustively and sequentially, random grid search model was used to accelerate hyperparameter selection process. Random grid search proceeds to randomly search the user specified space based on established search criteria. 
+Since random grid search model was used, additional hyperparameters were assessed for analysis. As shown below, Tanh and TanhWithDropout functions were tested. The hidden layer additionally included (30,30,30), (50,50) and (70,70). Rate 0.03 was tested along with 0.0 and 0.02. In addition, various combinations of regularization parameters (l1 and l2) were tested.
+
+```{r hyperRand, eval = FALSE}
+hyper_params <- list(
+  activation=c("Tanh","TanhWithDropout"),
+  hidden=list(c(20,20),c(30,30,30),c(40,40,40),c(50,50),c(70,70)),
+  input_dropout_ratio=c(0,0.05),
+  rate=c(0.01,0.02,0.03),
+  l1=seq(0,1e-4,1e-6),
+  l2=seq(0,1e-4,1e-6)
+)
+```
+
+With the hyperparameters specified, next step included defining the search criteria. As the criteria below shows, the algorithm was defined to stop when the top 5 models were within 2% of each other. Max model running time was 600 seconds (10 minutes). In addition to the max running time, number of max_models can also be specified. 
+
+```{r searchCrit, eval = FALSE}
+search_criteria = list(strategy = "RandomDiscrete", 
+                       max_runtime_secs = 600, max_models = 100, 
+                       seed=22, stopping_rounds=5, 
+                       stopping_tolerance=2e-2)
+```
+
+Following delineation of the search criteria, the h2o.grid function was used to specify additional fixed parameters. Additional parameters included definition of epochs of 40, max_w2 of 10, score_validation_samples of 10000 and score_duty_cycles of 0.025. The score_validation_samples specified the number of validation set samples for scoring while the score_duty_cycles specified the maximum duty cycle fraction for scoring. The same stopping parameters as the grid search model were used. The algorithm was thus indicated to stop when the MSE did not improve by at least 2% for 2 scoring events.
+
+```{r rand, eval = FALSE}
+random_grid <- h2o.grid(
+  algorithm="deeplearning",
+  grid_id = "Gridrandom",
+  training_frame=training,
+  validation_frame=validation, 
+  x=myX, 
+  y="dep_delay",
+  epochs=40,
+  stopping_metric="MSE",
+  stopping_tolerance=2e-2,        
+  stopping_rounds=2,
+  score_validation_samples=10000, 
+  score_duty_cycle=0.025,         
+  max_w2=10,                      
+  hyper_params = hyper_params,
+  search_criteria = search_criteria
+)
+```
+
+The validation set MSE for all random search models can be printed using for-loops. Additionally, the best model and its associated parameters can be viewed. As shown by `r ref("Hyarn111")`, optimal model generated by random grid search had an activation function of Tanh, hidden layer of (40, 40, 40), input_dropout_ratio of 0, rate of 0.03, l1 of 4.4e-05 and l2 of 7.4e-05. 
+
+```{r loop, eval = FALSE}
+for (model_id in grid@model_ids) {
+  model <- h2o.getModel(model_id)
+  mse <- h2o.mse(model, valid = TRUE) 
+  sprintf("Validation set MSE: %f", mse)
+}
+
+#Retrieve optimal model by MSE
+grid@summary_table[1,] 
+optimalRand <- h2o.getModel(grid@model_ids[[1]]) 
+
+optimalRand@allparameters #print all parameters of best model 
+h2o.performance(optimalRand, train = TRUE) #retrieve training MSE
+h2o.performance(optimalRand, valid = TRUE) #retrieve validation MSE
+h2o.performance(optimalRand, newdata = test) #retrieve test MSE 
+```
+
+```{r m2Train3, results = "asis", echo = FALSE}
+label(path = "figure/optimRandomParam.png", 
+      caption = "Random Grid Model Parameters", 
+      label = "Hyarn111", type = "figure", scale = 0.7)
+```
+
+As `r ref("Hyarn124")` indicates, the MSE on the optimal random model for the training data was 6560.97 whereas MSE for the validation set was 6577.3 and 6966.74 for the test set. The training, validation and test errors were lower than those yielded by the grid search model (6630.62 for training, 6883.68 for validation and 6972.59 for test). The difference between the MSE for the validation and test set raised concerns about overfitting. The errors for the random search model were lower than the initial deep learning model deepmod validation and test errors (validation MSE of 6918.5 and test MSE of 7010.6). 
+
+```{r m2Train8, results = "asis", echo = FALSE}
+label(path = "figure/DeepGridPerformRand.png", 
+      caption = "Random Grid Performance", 
+      label = "Hyarn124", type = "figure", scale = 0.8)
+```
+
+Variable importance plot can be used to view the most important predictors. In this case, a plot of the top 20 predictors was produced. As `r ref("Hyarn139")` shows, carrier Hawaiian Airlines (HA) were most important at predicting departure delay greater than 90 minutes, a result corroborated by shiny app. Additionally hour (5, 6 and 9 am)and carrier (SkyWest Airlines (OO), Northwest Airlines (NW) and US Airways (US)) appeared to be important predictors of departure delay greater than 90 minutes. 
+
+```{r import1, eval = FALSE}
+h2o.varimp_plot(optimal, num_of_features = 20)
+```
+
+```{r deepImport55, results = "asis", echo = FALSE}
+label(path = "figure/VarGridRandom.png", 
+      caption = "Random Grid Variable Importance", 
+      label = "Hyarn139", type = "figure", scale = 1.0)
+```
+
+\clearpage 
+
+## Checkpoint Model 
+Checkpoint functionality can be used in H2O to continue iterations from a previously built model. Checkpoint option allows specification of a previously built model key. The new model is then built as a continuation of the old model. If the model key is not supplied, then a new model is built instead. In the checkpoint model, the value of the parameters must be greater than their value set in the previous model. Parameters like activation function, max_categorical_features, momentum_ramp, momentum_stable, momentum_start and nfolds cannot be modified. A full list of all the parameters that cannot be modified can be found at (<http://docs.h2o.ai/h2o/latest-stable/h2o-docs/data-science/algo-params/checkpoint.html>)^[@checkpoint]. 
+
+With some reservations about overfitting in the random grid search model, higher l1 and l2 parameters were used to see if better performing model can be produced than the random grid search model. Additionally higher epochs (50) was specified. These additional parameters were specified from the initial basis of the optimal random grid search model, specified below in the checkpoint specification as Gridrandom6_model_6. Same activation (Tanh), hidden layer (40, 40, 40) and rate (0.03) were used since these parameters can't be altered in the checkpoint model. 
+
+```{r check1, eval = FALSE}
+max_epochs <- 50 
+checkpoint <- h2o.deeplearning(
+  model_id="GridModRandom_continued2", 
+  activation="Tanh",
+  checkpoint="Gridrandom6_model_6", 
+  training_frame=training, 
+  validation_frame=validation, 
+  y="dep_delay",
+  x=myX, 
+  hidden=c(40, 40, 40),          
+  epochs=max_epochs,              
+  stopping_metric="MSE",     
+  stopping_tolerance=2e-2,       
+  stopping_rounds=2,
+  score_duty_cycle=0.025,         
+  adaptive_rate=T,                
+  l1=1e-4,                        
+  l2=1e-4,
+  max_w2=10,
+  rate = 0.03,
+  variable_importances=T
+) 
+```
+
+As shown by `r ref("Hyarn143")`, MSE on the training data was 6874.65, 6899.89 for validation and 6992.02 for test data. Though the test set MSE for the checkpoint model is higher than the test MSE produced by the random grid model, the test MSE for the checkpoint model is closer to the validation set than the MSE for the validation and test sets in the model produced by random search grid criteria. The checkpoint model thus seems to have produced a better fitting model with reduced chance of overfitting than the random grid search model. 
+
+```{r check2, results = "asis", echo = FALSE}
+label(path = "figure/DeepGridCheckpoint.png", 
+      caption = "Checkpoint Performance",
+      label = "Hyarn143", type = "figure", scale = 0.7)
+```
+
+The variable importance plot shown in `r ref("Hyarn17")`, is comparable to the variable importance plot produced by random grid search model. Hawaiian carrier, 5 am, 6 am and 9 pm appeared to be the most important predictors of departure delay greater than 90 minutes. Additionally SkyWest Airlines, Northwest Airlines and US Airways appeared to be next important in predicting departure delay greater than 90 minutes. 
+
+```{r check3, results = "asis", echo = FALSE}
+label(path = "figure/VarImportCheckpoint.png", 
+      caption = "Checkpoint Variable Importance", 
+      label = "Hyarn17", type = "figure", scale = 0.9)
+```
+
+\clearpage 
+
+## Conclusions
+This chapter discussed deep learning models including concepts like setting up hyperparameters for deep learning models through the grid search and random search methods. In addition, the checkpoint model functionality was discussed. 
+
+Overall, hour and carrier status predictors were most important predictors of departure delay greater than 90 minutes. Hour 5 am, 6 am, 9 pm along with carriers Hawaiian Airlines, Northwest, Skywest, US Airlines, Southwest and JetBlue were also important. 
+
+In regards to model performance, the grid search and the random grid model both performed better than the initial deep learning model. In addition, the checkpoint model reduced overfitting, thereby producing better performance than the random grid model.

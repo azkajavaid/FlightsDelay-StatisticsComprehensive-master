@@ -1,0 +1,50 @@
+
+
+# Big Data Infrastructure
+
+## H2O
+H2O is a big-data machine learning and predictive analytics platform, reputable for its fast and scalable deep learning capabilities. Machine learning algorithms include supervised and unsupervised learning algorithms like neural networks, tree ensembling, generalized linear regression models and k-means clustering. H2O provides deep learning capabilities through algorithms like perceptrons and feed forward neural networks. This platform is built as a Java Virtual Machine (JVM), which is an abstract computing environment for running a Java instance [@JVM]. H2O clients consequently have a remote connection to the data held on the H2O clusters as shown by `r ref("HyarnCluster")` [@h2oBook]. This contained environment is optimal for performing distributed and parallel machine learning computations simultaneously on clusters. 
+
+### H2O Installation Process 
+H2O installation entails loading Spark 1.6 and H2O version 3.10.06, both of which integrate with rsparkling. H2O package can be downloaded from (<http://h2o-release.s3.amazonaws.com/h2o/rel-turing/6/index.html#R>)^[@H2OInstall]. The rsparkling package can be installed using devtools.
+
+Since H2O connection necessitates initialization of a local Spark connection, same versions of Spark and Sparkling Water need be installed. Desktop version of Spark can be downloaded at (<http://spark.apache.org/downloads.html>)^[@DownloadSpark]. Desktop version of Sparkling Water can be downloaded at (<http://h2o-release.s3.amazonaws.com/sparkling-water/rel-1.6/8/index.html>)^[@DownloadSparklingWater]. 
+
+```{r clusterFar, results = "asis", echo = FALSE}
+label(path = "figure/DataClusters.png", caption = "Client and H2O Cluster", 
+      label = "HyarnCluster", type = "figure", scale = 0.5)
+```
+
+## Apache Spark 
+Spark is a big-data platform that provides fast in-memory distributed processing. This contrasts with Hadoop, which employs the MapReduce processing platform and necessitates data writing to an external disk through the Hadoop Distributed File System (HDFS) [@HDFS]. Spark uses the Resilient Distributed Datasets (RDD) data structure, which divides the dataset in logical partitions, each of which can be processed on separate nodes within clusters. This RDD structure obviates the need to write data to an external storage system thus providing faster in-memory processing [@RDD]. 
+
+In R, the sparklyr package provides an R interface for Apache Spark. This interface facilitates access to Spark's distributed machine learning library.
+
+## Sparkling Water 
+Sparkling Water combines the machine learning capabilities of H2O with the in-memory distributed, fast computation of the Spark platform. Tachyon, which is an in-memory distributed file system, facilitates exchange of data between Spark and H2O [@Tachyon].
+The rsparkling package in R provides access to H2O’s machine learning routines within the Spark platform accessible over R. Spark data frames can be converted to H2O frames for machine learning and deep learning algorithm implementation.  
+
+## RSparkling 
+The rsparkling package facilitates data transfer between Spark and H2O dataframes. Rsparkling also allows access to Sparkling Water's machine learning algorithms [@SparklingWaterML].
+
+## Hadoop YARN
+Apache Hadoop YARN includes separate resource management and job scheduling infrastructures in collective resource manager and individual node manager through a master-slave hierarchy (as shown by `r ref("Hyarn")`[@RDD]). The per-application based application masters negotiate resources with the resource manager and execute and monitor tasks in collaboration with node managers. The resource managers additionally contain a scheduler that arranges jobs based on resource requirements. Individual node managers are responsible for launching application containers and examining resource use (like memory and disk consumption). Updates are then reported back to the resource manager. Per-node application master negotiate resource containers with scheduler [@hortonApache].
+
+```{r amherst_logo, results = "asis", echo = FALSE}
+label(path = "figure/yarn.png", caption = "Hadoop YARN architecture", 
+      label = "Hyarn", type = "figure", scale = 0.5)
+```
+
+## Additional Resources
+
+- H2O Installation guide - <http://h2o-release.s3.amazonaws.com/h2o/rel-turing/6/index.html#R>
+
+- H2O Documentation - <http://h2o-release.s3.amazonaws.com/h2o/rel-lambert/5/docs-website/index.html>
+
+- Sparkling Water Installation - <http://www.h2o.ai/download/sparkling-water/> 
+
+- Sparkling Water Overview - <http://spark.rstudio.com/h2o.html>
+
+- Sparklyr Overview and Installation - <http://spark.rstudio.com>
+
+
